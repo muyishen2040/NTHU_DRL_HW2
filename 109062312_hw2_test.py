@@ -40,7 +40,7 @@ class Agent:
                 return int(np.prod(output.size()))
         
     def __init__(self):
-        policy_net_path='model_weights.pth'
+        policy_net_path='model_weights_2.pth'
         stack_frames=4
         skip_frames=4
         # model_module = importlib.import_module("109062312_hw2_data")
@@ -54,7 +54,7 @@ class Agent:
         self.resize = transforms.Compose([transforms.ToPILImage(), transforms.Resize((84, 84)), transforms.Grayscale(), transforms.ToTensor()])
         self.last_action = 0
         self.action_counter = 0
-        self.epsilon = 0.02
+        self.epsilon = 0.01
 
     def act(self, observation):
         
