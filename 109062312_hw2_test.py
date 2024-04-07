@@ -40,7 +40,7 @@ class Agent:
                 return int(np.prod(output.size()))
         
     def __init__(self):
-        policy_net_path='model_weights_2.pth'
+        policy_net_path='model_weights.pth'
         stack_frames=4
         skip_frames=4
         # model_module = importlib.import_module("109062312_hw2_data")
