@@ -54,7 +54,7 @@ class Agent:
         self.resize = transforms.Compose([transforms.ToPILImage(), transforms.Resize((84, 84)), transforms.Grayscale(), transforms.ToTensor()])
         self.last_action = 0
         self.action_counter = 0
-        self.epsilon = 0.01
+        self.epsilon = 0.02
 
     def act(self, observation):
         
