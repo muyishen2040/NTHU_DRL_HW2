@@ -8,6 +8,23 @@ from torchvision import transforms
 from collections import deque
 import random
 
+from PIL import Image, ImageDraw
+mask_areas = [(5, 6, 5, 18),
+              (7, 27, 5, 13),
+              (5, 45, 6, 15),
+              (4, 64, 8, 11)]
+
+def apply_mask(observation, mask_areas):
+    draw = ImageDraw.Draw(observation)
+    for area in mask_areas:
+        top, left, height, width = area
+        bottom = top + height
+        right = left + width
+        draw.rectangle([left, top, right, bottom], fill=0)
+    return observation
+
+
+
 class Agent:
     class Net(nn.Module):
         def __init__(self, input_shape=(4, 84, 84), n_actions=len(COMPLEX_MOVEMENT)):
@@ -22,7 +39,14 @@ class Agent:
                 nn.Flatten(),
             )
             self.flattened_size = self._get_conv_output(input_shape)
-            self.fc_layers = nn.Sequential(
+            
+            self.value_stream = nn.Sequential(
+                nn.Linear(self.flattened_size, 512),
+                nn.ReLU(),
+                nn.Linear(512, 1)
+            )
+            
+            self.advantage_stream = nn.Sequential(
                 nn.Linear(self.flattened_size, 512),
                 nn.ReLU(),
                 nn.Linear(512, n_actions)
@@ -30,8 +54,11 @@ class Agent:
         
         def forward(self, x):
             x = self.conv_layers(x)
-            x = self.fc_layers(x)
-            return x
+            value = self.value_stream(x)
+            advantage = self.advantage_stream(x)
+            
+            q_values = value + (advantage - advantage.mean(1).view(-1, 1))
+            return q_values
         
         def _get_conv_output(self, shape):
             with torch.no_grad():
@@ -40,7 +67,7 @@ class Agent:
                 return int(np.prod(output.size()))
         
     def __init__(self):
-        policy_net_path='model_weights_4.pth'
+        policy_net_path='model_weights_5.pth'
         stack_frames=4
         skip_frames=4
         # model_module = importlib.import_module("109062312_hw2_data")
@@ -51,10 +78,17 @@ class Agent:
         self.stack_frames = stack_frames
         self.skip_frames = skip_frames
         self.state_buffer = deque([], maxlen=stack_frames)
-        self.resize = transforms.Compose([transforms.ToPILImage(), transforms.Resize((84, 84)), transforms.Grayscale(), transforms.ToTensor()])
+        # self.resize = transforms.Compose([transforms.ToPILImage(), transforms.Resize((84, 84)), transforms.Grayscale(), transforms.ToTensor()])
+        self.resize = transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.Resize((84, 84)),
+            transforms.Lambda(lambda x: apply_mask(x, mask_areas)),
+            transforms.Grayscale(),
+            transforms.ToTensor()
+        ])
         self.last_action = 0
         self.action_counter = 0
-        self.epsilon = 0.009
+        self.epsilon = 0.005
 
     def act(self, observation):
         
