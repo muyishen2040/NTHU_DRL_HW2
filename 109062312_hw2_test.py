@@ -7,6 +7,7 @@ import torch.optim as optim
 from torchvision import transforms
 from collections import deque
 import random
+import torch.quantization
 
 from PIL import Image, ImageDraw
 mask_areas = [(5, 6, 5, 18),
@@ -26,35 +27,6 @@ def apply_mask(observation, mask_areas):
 
 
 class Agent:
-    class Net(nn.Module):
-        def __init__(self, input_shape=(4, 84, 84), n_actions=len(COMPLEX_MOVEMENT)):
-            super(Agent.Net, self).__init__()
-            self.conv_layers = nn.Sequential(
-                nn.Conv2d(input_shape[0], 32, kernel_size=8, stride=4),
-                nn.ReLU(),
-                nn.Conv2d(32, 64, kernel_size=4, stride=2),
-                nn.ReLU(),
-                nn.Conv2d(64, 64, kernel_size=3, stride=1),
-                nn.ReLU(),
-                nn.Flatten(),
-            )
-            self.flattened_size = self._get_conv_output(input_shape)
-            self.fc_layers = nn.Sequential(
-                nn.Linear(self.flattened_size, 512),
-                nn.ReLU(),
-                nn.Linear(512, n_actions)
-            )
-        
-        def forward(self, x):
-            x = self.conv_layers(x)
-            x = self.fc_layers(x)
-            return x
-        
-        def _get_conv_output(self, shape):
-            with torch.no_grad():
-                input = torch.zeros(1, *shape)
-                output = self.conv_layers(input)
-                return int(np.prod(output.size()))
     # class Net(nn.Module):
     #     def __init__(self, input_shape=(4, 84, 84), n_actions=len(COMPLEX_MOVEMENT)):
     #         super(Agent.Net, self).__init__()
@@ -68,14 +40,7 @@ class Agent:
     #             nn.Flatten(),
     #         )
     #         self.flattened_size = self._get_conv_output(input_shape)
-            
-    #         self.value_stream = nn.Sequential(
-    #             nn.Linear(self.flattened_size, 512),
-    #             nn.ReLU(),
-    #             nn.Linear(512, 1)
-    #         )
-            
-    #         self.advantage_stream = nn.Sequential(
+    #         self.fc_layers = nn.Sequential(
     #             nn.Linear(self.flattened_size, 512),
     #             nn.ReLU(),
     #             nn.Linear(512, n_actions)
@@ -83,41 +48,84 @@ class Agent:
         
     #     def forward(self, x):
     #         x = self.conv_layers(x)
-    #         value = self.value_stream(x)
-    #         advantage = self.advantage_stream(x)
-            
-    #         q_values = value + (advantage - advantage.mean(1).view(-1, 1))
-    #         return q_values
+    #         x = self.fc_layers(x)
+    #         return x
         
     #     def _get_conv_output(self, shape):
     #         with torch.no_grad():
     #             input = torch.zeros(1, *shape)
     #             output = self.conv_layers(input)
     #             return int(np.prod(output.size()))
+    class Net(nn.Module):
+        def __init__(self, input_shape=(4, 84, 84), n_actions=len(COMPLEX_MOVEMENT)):
+            super(Agent.Net, self).__init__()
+            self.conv_layers = nn.Sequential(
+                nn.Conv2d(input_shape[0], 32, kernel_size=8, stride=4),
+                nn.ReLU(),
+                nn.Conv2d(32, 64, kernel_size=4, stride=2),
+                nn.ReLU(),
+                nn.Conv2d(64, 64, kernel_size=3, stride=1),
+                nn.ReLU(),
+                nn.Flatten(),
+            )
+            self.flattened_size = self._get_conv_output(input_shape)
+            
+            self.value_stream = nn.Sequential(
+                nn.Linear(self.flattened_size, 512),
+                nn.ReLU(),
+                nn.Linear(512, 1)
+            )
+            
+            self.advantage_stream = nn.Sequential(
+                nn.Linear(self.flattened_size, 512),
+                nn.ReLU(),
+                nn.Linear(512, n_actions)
+            )
+        
+        def forward(self, x):
+            x = self.conv_layers(x)
+            value = self.value_stream(x)
+            advantage = self.advantage_stream(x)
+            
+            q_values = value + (advantage - advantage.mean(1).view(-1, 1))
+            return q_values
+        
+        def _get_conv_output(self, shape):
+            with torch.no_grad():
+                input = torch.zeros(1, *shape)
+                output = self.conv_layers(input)
+                return int(np.prod(output.size()))
         
     def __init__(self):
-        policy_net_path='model_weights_5.pth'
+        # policy_net_path='model_weights_5.pth'
         stack_frames=4
         skip_frames=4
         # model_module = importlib.import_module("109062312_hw2_data")
         # Net = model_module.Net
+        model_state_dict = torch.load('109062312_hw2_data.pth')
         self.policy_net = Agent.Net()
-        self.policy_net.load_state_dict(torch.load(policy_net_path))
+        self.policy_net.value_stream = torch.quantization.quantize_dynamic(
+            self.policy_net.value_stream, {nn.Linear}, dtype=torch.qint8
+        )
+        self.policy_net.load_state_dict(model_state_dict)
         self.policy_net.eval()
+        # self.policy_net = Agent.Net()
+        # self.policy_net.load_state_dict(torch.load(policy_net_path))
+        # self.policy_net.eval()
         self.stack_frames = stack_frames
         self.skip_frames = skip_frames
         self.state_buffer = deque([], maxlen=stack_frames)
-        self.resize = transforms.Compose([transforms.ToPILImage(), transforms.Resize((84, 84)), transforms.Grayscale(), transforms.ToTensor()])
-        # self.resize = transforms.Compose([
-        #     transforms.ToPILImage(),
-        #     transforms.Resize((84, 84)),
-        #     transforms.Lambda(lambda x: apply_mask(x, mask_areas)),
-        #     transforms.Grayscale(),
-        #     transforms.ToTensor()
-        # ])
+        # self.resize = transforms.Compose([transforms.ToPILImage(), transforms.Resize((84, 84)), transforms.Grayscale(), transforms.ToTensor()])
+        self.resize = transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.Resize((84, 84)),
+            transforms.Lambda(lambda x: apply_mask(x, mask_areas)),
+            transforms.Grayscale(),
+            transforms.ToTensor()
+        ])
         self.last_action = 0
         self.action_counter = 0
-        self.epsilon = 0.005
+        self.epsilon = 0.002
 
     def act(self, observation):
         
