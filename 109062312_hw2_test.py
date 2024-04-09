@@ -117,7 +117,7 @@ class Agent:
         # ])
         self.last_action = 0
         self.action_counter = 0
-        self.epsilon = 0.009
+        self.epsilon = 0.005
 
     def act(self, observation):
         
