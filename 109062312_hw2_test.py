@@ -102,7 +102,7 @@ class Agent:
         skip_frames=4
         # model_module = importlib.import_module("109062312_hw2_data")
         # Net = model_module.Net
-        model_state_dict = torch.load('109062312_hw2_data.pth')
+        model_state_dict = torch.load('109062312_hw2_data.py')
         self.policy_net = Agent.Net()
         self.policy_net.value_stream = torch.quantization.quantize_dynamic(
             self.policy_net.value_stream, {nn.Linear}, dtype=torch.qint8
