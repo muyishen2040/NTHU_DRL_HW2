@@ -96,7 +96,7 @@ class Agent:
     #             return int(np.prod(output.size()))
         
     def __init__(self):
-        policy_net_path='model_weights_6.pth'
+        policy_net_path='model_weights_5.pth'
         stack_frames=4
         skip_frames=4
         # model_module = importlib.import_module("109062312_hw2_data")
@@ -117,7 +117,7 @@ class Agent:
         # ])
         self.last_action = 0
         self.action_counter = 0
-        self.epsilon = 0.001
+        self.epsilon = 0.005
 
     def act(self, observation):
         
